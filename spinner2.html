@@ -1,361 +1,814 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { Upload, RotateCcw, Play, Users, Volume2 } from 'lucide-react';
-import Papa from 'papaparse';
-import * as Tone from 'tone';
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Student Spinner Wheel</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
 
-const StudentSpinner = () => {
-  const [students, setStudents] = useState([]);
-  const [isSpinning, setIsSpinning] = useState(false);
-  const [selectedStudent, setSelectedStudent] = useState(null);
-  const [rotation, setRotation] = useState(0);
-  const [textInput, setTextInput] = useState('');
-  const fileInputRef = useRef(null);
-  const spinnerRef = useRef(null);
-  const [soundEnabled, setSoundEnabled] = useState(true);
+        body {
+            min-height: 100vh;
+            background: linear-gradient(135deg, #1e3a8a, #581c87, #312e81);
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            padding: 1rem;
+        }
 
-  // Demo students data
-  const demoStudents = [
-    "Alice Johnson", "Bob Smith", "Charlie Brown", "Diana Lee", "Emma Davis",
-    "Frank Wilson", "Grace Chen", "Henry Taylor", "Ivy Martinez", "Jack Robinson",
-    "Kate Thompson", "Liam Garcia", "Maya Patel", "Noah Kim", "Olivia White",
-    "Peter Zhang", "Quinn Adams", "Ruby Singh", "Sam Lopez", "Tara Miller",
-    "Uma Sharma", "Victor Wong", "Wendy Clark", "Xavier Torres", "Zoe Green"
-  ];
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
 
-  // Process names to handle duplicates
-  const processNames = (nameList) => {
-    const firstNames = nameList.map(name => {
-      const parts = name.trim().split(' ');
-      return {
-        firstName: parts[0],
-        lastName: parts.length > 1 ? parts[parts.length - 1] : '',
-        fullName: name.trim()
-      };
-    });
+        .header {
+            text-align: center;
+            margin-bottom: 2rem;
+        }
 
-    // Count occurrences of first names
-    const firstNameCounts = {};
-    firstNames.forEach(item => {
-      const firstName = item.firstName.toLowerCase();
-      firstNameCounts[firstName] = (firstNameCounts[firstName] || 0) + 1;
-    });
+        .header h1 {
+            font-size: 2.5rem;
+            font-weight: bold;
+            color: white;
+            margin-bottom: 0.5rem;
+        }
 
-    // Process names based on duplicates
-    return firstNames.map(item => {
-      const firstName = item.firstName;
-      const firstNameLower = firstName.toLowerCase();
-      
-      if (firstNameCounts[firstNameLower] > 1 && item.lastName) {
-        return `${firstName} ${item.lastName.charAt(0)}.`;
-      }
-      return firstName;
-    });
-  };
+        .header p {
+            color: #bfdbfe;
+        }
 
-  // Load demo students
-  const loadDemoStudents = () => {
-    const processedNames = processNames(demoStudents);
-    setStudents(processedNames);
-    setSelectedStudent(null);
-  };
+        .controls {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border-radius: 0.75rem;
+            padding: 1.5rem;
+            margin-bottom: 2rem;
+        }
 
-  // Handle text input
-  const handleTextInput = () => {
-    if (!textInput.trim()) return;
-    
-    const nameList = textInput.split(/[,\n]/).filter(name => name.trim());
-    const processedNames = processNames(nameList);
-    setStudents(processedNames);
-    setTextInput('');
-    setSelectedStudent(null);
-  };
+        .button-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1rem;
+            margin-bottom: 1.5rem;
+        }
 
-  // Handle CSV file upload
-  const handleFileUpload = (event) => {
-    const file = event.target.files[0];
-    if (!file) return;
+        .btn {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+            padding: 0.75rem 1rem;
+            border: none;
+            border-radius: 0.5rem;
+            font-weight: 600;
+            color: white;
+            cursor: pointer;
+            transition: all 0.2s;
+            text-decoration: none;
+        }
 
-    Papa.parse(file, {
-      complete: (results) => {
-        const nameList = results.data.flat().filter(name => name && name.trim());
-        const processedNames = processNames(nameList);
-        setStudents(processedNames);
-        setSelectedStudent(null);
-      },
-      header: false,
-      skipEmptyLines: true
-    });
+        .btn:hover {
+            transform: translateY(-1px);
+        }
 
-    // Reset file input
-    event.target.value = '';
-  };
+        .btn:active {
+            transform: translateY(0);
+        }
 
-  // Play sound effect
-  const playSound = async (type) => {
-    if (!soundEnabled) return;
-    
-    try {
-      await Tone.start();
-      
-      if (type === 'spin') {
-        // Spinning sound - rising pitch
-        const synth = new Tone.Synth().toDestination();
-        synth.triggerAttackRelease('C4', '0.5s');
-        setTimeout(() => synth.triggerAttackRelease('E4', '0.3s'), 200);
-      } else if (type === 'select') {
-        // Selection sound - bell-like
-        const synth = new Tone.Synth({
-          oscillator: { type: 'triangle' }
-        }).toDestination();
-        synth.triggerAttackRelease('C5', '0.8s');
-      }
-    } catch (error) {
-      console.log('Sound playback failed:', error);
-    }
-  };
+        .btn-green { background: #059669; }
+        .btn-green:hover { background: #047857; }
+        .btn-blue { background: #2563eb; }
+        .btn-blue:hover { background: #1d4ed8; }
+        .btn-gray { background: #6b7280; }
+        .btn-gray:hover { background: #555866; }
+        .btn-yellow { background: #d97706; }
+        .btn-yellow:hover { background: #b45309; }
+        .btn-purple { background: #7c3aed; }
+        .btn-purple:hover { background: #6d28d9; }
 
-  // Spin function
-  const spin = () => {
-    if (isSpinning || students.length === 0) return;
+        .input-group {
+            display: flex;
+            gap: 0.5rem;
+        }
 
-    setIsSpinning(true);
-    setSelectedStudent(null);
-    playSound('spin');
+        .input-group input {
+            flex: 1;
+            padding: 0.5rem 1rem;
+            border: 1px solid #d1d5db;
+            border-radius: 0.5rem;
+            outline: none;
+        }
 
-    // Calculate random rotation (3-5 full spins plus random angle)
-    const baseRotation = rotation;
-    const spins = 3 + Math.random() * 2;
-    const randomAngle = Math.random() * 360;
-    const totalRotation = baseRotation + (spins * 360) + randomAngle;
+        .input-group input:focus {
+            box-shadow: 0 0 0 2px #2563eb;
+            border-color: transparent;
+        }
 
-    setRotation(totalRotation);
+        .main-content {
+            display: flex;
+            flex-direction: column;
+            gap: 2rem;
+            align-items: center;
+            justify-content: center;
+        }
 
-    // Calculate which student is selected
-    const normalizedAngle = (360 - (totalRotation % 360)) % 360;
-    const studentIndex = Math.floor((normalizedAngle / 360) * students.length);
-    const selected = students[studentIndex];
+        @media (min-width: 1024px) {
+            .main-content {
+                flex-direction: row;
+            }
+        }
 
-    setTimeout(() => {
-      setSelectedStudent(selected);
-      setIsSpinning(false);
-      playSound('select');
-      
-      // Remove selected student from list
-      setStudents(prev => prev.filter((_, index) => index !== studentIndex));
-    }, 3000);
-  };
+        .spinner-container {
+            position: relative;
+        }
 
-  // Reset all students
-  const resetStudents = () => {
-    if (students.length > 0) {
-      // This is a simple reset - in a real app you might want to store the original list
-      setSelectedStudent(null);
-    }
-  };
+        .spinner-wheel {
+            width: 384px;
+            height: 384px;
+            position: relative;
+        }
 
-  // Keyboard event handler
-  useEffect(() => {
-    const handleKeyPress = (event) => {
-      if (event.code === 'Space') {
-        event.preventDefault();
-        spin();
-      }
-    };
+        .spinner-bg {
+            position: absolute;
+            inset: 0;
+            border-radius: 50%;
+            background: linear-gradient(45deg, #fbbf24, #f97316, #ef4444);
+            box-shadow: 0 25px 50px rgba(0, 0, 0, 0.25);
+        }
 
-    window.addEventListener('keydown', handleKeyPress);
-    return () => window.removeEventListener('keydown', handleKeyPress);
-  }, [isSpinning, students]);
+        .spinner-inner {
+            position: absolute;
+            inset: 8px;
+            border-radius: 50%;
+            background: white;
+            box-shadow: inset 0 4px 6px rgba(0, 0, 0, 0.1);
+            transition: transform ease-out;
+        }
 
-  return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-900 via-purple-900 to-indigo-900 p-4">
-      <div className="max-w-6xl mx-auto">
-        {/* Header */}
-        <div className="text-center mb-8">
-          <h1 className="text-4xl font-bold text-white mb-2">🎯 Student Spinner</h1>
-          <p className="text-blue-200">Select a student randomly for class activities!</p>
+        .student-name {
+            position: absolute;
+            font-size: 0.875rem;
+            font-weight: 600;
+            color: #374151;
+            background: rgba(255, 255, 255, 0.8);
+            padding: 0.25rem 0.5rem;
+            border-radius: 0.25rem;
+            border: 2px solid #d1d5db;
+            transform: translate(-50%, -50%);
+            white-space: nowrap;
+        }
+
+        .spinner-center {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 2rem;
+            height: 2rem;
+            background: #374151;
+            border-radius: 50%;
+            transform: translate(-50%, -50%);
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            z-index: 10;
+        }
+
+        .spinner-pointer {
+            position: absolute;
+            top: 1rem;
+            left: 50%;
+            width: 0;
+            height: 0;
+            border-left: 15px solid transparent;
+            border-right: 15px solid transparent;
+            border-bottom: 30px solid #dc2626;
+            transform: translateX(-50%);
+            z-index: 20;
+            filter: drop-shadow(0 4px 6px rgba(0, 0, 0, 0.1));
+        }
+
+        .spin-controls {
+            text-align: center;
+            margin-top: 2rem;
+        }
+
+        .spin-btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.75rem;
+            padding: 1rem 2rem;
+            font-size: 1.25rem;
+            font-weight: bold;
+            border: none;
+            border-radius: 9999px;
+            background: linear-gradient(45deg, #10b981, #3b82f6);
+            color: white;
+            cursor: pointer;
+            transition: all 0.2s;
+            box-shadow: 0 10px 15px rgba(0, 0, 0, 0.1);
+        }
+
+        .spin-btn:hover {
+            background: linear-gradient(45deg, #059669, #2563eb);
+            box-shadow: 0 20px 25px rgba(0, 0, 0, 0.15);
+            transform: scale(1.05);
+        }
+
+        .spin-btn:active {
+            transform: scale(0.95);
+        }
+
+        .spin-btn:disabled {
+            background: #9ca3af;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .spin-hint {
+            color: #bfdbfe;
+            margin-top: 0.5rem;
+            font-size: 0.875rem;
+        }
+
+        .info-panel {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border-radius: 0.75rem;
+            padding: 1.5rem;
+            width: 100%;
+            max-width: 320px;
+        }
+
+        .info-title {
+            font-size: 1.25rem;
+            font-weight: bold;
+            color: white;
+            margin-bottom: 1rem;
+        }
+
+        .status-item {
+            margin-bottom: 1rem;
+        }
+
+        .status-label {
+            color: #bfdbfe;
+            font-size: 0.875rem;
+        }
+
+        .status-value {
+            font-size: 1.5rem;
+            font-weight: bold;
+            color: white;
+        }
+
+        .selected-student {
+            background: rgba(34, 197, 94, 0.2);
+            border: 1px solid #4ade80;
+            border-radius: 0.5rem;
+            padding: 1rem;
+            margin-bottom: 1rem;
+        }
+
+        .selected-label {
+            color: #bbf7d0;
+            font-size: 0.875rem;
+        }
+
+        .selected-name {
+            font-size: 1.5rem;
+            font-weight: bold;
+            color: #dcfce7;
+        }
+
+        .student-list {
+            max-height: 160px;
+            overflow-y: auto;
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: 0.5rem;
+            padding: 0.75rem;
+        }
+
+        .student-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 0.25rem;
+            font-size: 0.875rem;
+            color: white;
+        }
+
+        .student-item {
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .empty-list {
+            color: #9ca3af;
+            font-size: 0.875rem;
+            font-style: italic;
+        }
+
+        .instructions {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border-radius: 0.75rem;
+            padding: 1.5rem;
+            margin-top: 2rem;
+        }
+
+        .instructions h3 {
+            font-size: 1.125rem;
+            font-weight: bold;
+            color: white;
+            margin-bottom: 0.75rem;
+        }
+
+        .instruction-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 1rem;
+            color: #bfdbfe;
+            font-size: 0.875rem;
+        }
+
+        .instruction-item strong {
+            color: white;
+        }
+
+        .hidden {
+            display: none;
+        }
+
+        .icon {
+            width: 20px;
+            height: 20px;
+            fill: currentColor;
+        }
+
+        .error-message {
+            background: rgba(239, 68, 68, 0.1);
+            border: 1px solid #f87171;
+            color: #fecaca;
+            padding: 0.75rem;
+            border-radius: 0.5rem;
+            margin-top: 1rem;
+            font-size: 0.875rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <div class="header">
+            <h1>🎯 Student Spinner</h1>
+            <p>Select a student randomly for class activities!</p>
         </div>
 
-        {/* Controls */}
-        <div className="bg-white/10 backdrop-blur-sm rounded-xl p-6 mb-8">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-            <button
-              onClick={loadDemoStudents}
-              className="flex items-center justify-center gap-2 bg-green-600 hover:bg-green-700 text-white px-4 py-3 rounded-lg transition-colors"
-            >
-              <Users size={20} />
-              Load Demo (25 students)
-            </button>
+        <!-- Controls -->
+        <div class="controls">
+            <div class="button-grid">
+                <button id="demoBtn" class="btn btn-green">
+                    <svg class="icon" viewBox="0 0 24 24"><path d="M12 6c1.1 0 2 .9 2 2s-.9 2-2 2-2-.9-2-2 .9-2 2-2m0 10c2.7 0 5.8 1.29 6 2H6c.23-.72 3.31-2 6-2m0-12C9.79 4 8 5.79 8 8s1.79 4 4 4 4-1.79 4-4-1.79-4-4-4zm0 10c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>
+                    Load Demo (25 students)
+                </button>
 
-            <button
-              onClick={() => fileInputRef.current?.click()}
-              className="flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-3 rounded-lg transition-colors"
-            >
-              <Upload size={20} />
-              Upload CSV
-            </button>
+                <button id="uploadBtn" class="btn btn-blue">
+                    <svg class="icon" viewBox="0 0 24 24"><path d="M14,2H6A2,2 0 0,0 4,4V20A2,2 0 0,0 6,22H18A2,2 0 0,0 20,20V8L14,2M18,20H6V4H13V9H18V20Z"/></svg>
+                    Upload CSV
+                </button>
 
-            <button
-              onClick={resetStudents}
-              className="flex items-center justify-center gap-2 bg-gray-600 hover:bg-gray-700 text-white px-4 py-3 rounded-lg transition-colors"
-            >
-              <RotateCcw size={20} />
-              Reset
-            </button>
+                <button id="resetBtn" class="btn btn-gray">
+                    <svg class="icon" viewBox="0 0 24 24"><path d="M17.65,6.35C16.2,4.9 14.21,4 12,4A8,8 0 0,0 4,12A8,8 0 0,0 12,20C15.73,20 18.84,17.45 19.73,14H17.65C16.83,16.33 14.61,18 12,18A6,6 0 0,1 6,12A6,6 0 0,1 12,6C13.66,6 15.14,6.69 16.22,7.78L13,11H20V4L17.65,6.35Z"/></svg>
+                    Reset
+                </button>
 
-            <button
-              onClick={() => setSoundEnabled(!soundEnabled)}
-              className={`flex items-center justify-center gap-2 ${soundEnabled ? 'bg-yellow-600 hover:bg-yellow-700' : 'bg-gray-600 hover:bg-gray-700'} text-white px-4 py-3 rounded-lg transition-colors`}
-            >
-              <Volume2 size={20} />
-              Sound {soundEnabled ? 'On' : 'Off'}
-            </button>
-          </div>
+                <button id="soundBtn" class="btn btn-yellow">
+                    <svg class="icon" viewBox="0 0 24 24"><path d="M14,3.23V5.29C16.89,6.15 19,8.83 19,12C19,15.17 16.89,17.85 14,18.71V20.77C18,19.86 21,16.28 21,12C21,7.72 18,4.14 14,3.23M16.5,12C16.5,10.23 15.5,8.71 14,7.97V16C15.5,15.29 16.5,13.76 16.5,12M3,9V15H7L12,20V4L7,9H3Z"/></svg>
+                    Sound On
+                </button>
+            </div>
 
-          {/* Text Input */}
-          <div className="flex gap-2">
-            <input
-              type="text"
-              value={textInput}
-              onChange={(e) => setTextInput(e.target.value)}
-              placeholder="Enter student names separated by commas or line breaks..."
-              className="flex-1 px-4 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              onKeyPress={(e) => e.key === 'Enter' && handleTextInput()}
-            />
-            <button
-              onClick={handleTextInput}
-              className="bg-purple-600 hover:bg-purple-700 text-white px-6 py-2 rounded-lg transition-colors"
-            >
-              Add Students
-            </button>
-          </div>
+            <div class="input-group">
+                <input 
+                    type="text" 
+                    id="textInput" 
+                    placeholder="Enter student names separated by commas or line breaks..."
+                />
+                <button id="addBtn" class="btn btn-purple">Add Students</button>
+            </div>
 
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept=".csv"
-            onChange={handleFileUpload}
-            className="hidden"
-          />
+            <input type="file" id="fileInput" accept=".csv" class="hidden" />
+            <div id="errorMessage" class="error-message hidden"></div>
         </div>
 
-        {/* Main Spinner Area */}
-        <div className="flex flex-col lg:flex-row gap-8 items-center justify-center">
-          {/* Spinner */}
-          <div className="relative">
-            <div className="w-96 h-96 relative">
-              {/* Spinner Background */}
-              <div className="absolute inset-0 rounded-full bg-gradient-to-r from-yellow-400 via-orange-500 to-red-500 shadow-2xl"></div>
-              
-              {/* Spinner Wheel */}
-              <div
-                ref={spinnerRef}
-                className="absolute inset-2 rounded-full bg-white shadow-inner transition-transform duration-3000 ease-out"
-                style={{
-                  transform: `rotate(${rotation}deg)`,
-                  transitionDuration: isSpinning ? '3000ms' : '0ms'
-                }}
-              >
-                {/* Students on the wheel */}
-                {students.map((student, index) => {
-                  const angle = (360 / students.length) * index;
-                  const radius = 140;
-                  const x = Math.cos((angle - 90) * Math.PI / 180) * radius;
-                  const y = Math.sin((angle - 90) * Math.PI / 180) * radius;
-                  
-                  return (
-                    <div
-                      key={index}
-                      className="absolute text-sm font-semibold text-gray-800 transform -translate-x-1/2 -translate-y-1/2 bg-white/80 px-2 py-1 rounded border-2 border-gray-300"
-                      style={{
-                        left: `calc(50% + ${x}px)`,
-                        top: `calc(50% + ${y}px)`,
-                        transform: `translate(-50%, -50%) rotate(${angle}deg)`
-                      }}
-                    >
-                      {student}
-                    </div>
-                  );
-                })}
-              </div>
-
-              {/* Center Hub */}
-              <div className="absolute inset-1/2 w-8 h-8 -translate-x-1/2 -translate-y-1/2 bg-gray-800 rounded-full shadow-lg z-10"></div>
-
-              {/* Pointer */}
-              <div className="absolute top-4 left-1/2 w-0 h-0 border-l-[15px] border-r-[15px] border-b-[30px] border-l-transparent border-r-transparent border-b-red-600 transform -translate-x-1/2 z-20 drop-shadow-lg"></div>
-            </div>
-
-            {/* Spin Button */}
-            <div className="text-center mt-8">
-              <button
-                onClick={spin}
-                disabled={isSpinning || students.length === 0}
-                className={`flex items-center justify-center gap-3 mx-auto px-8 py-4 text-xl font-bold rounded-full transition-all transform ${
-                  isSpinning || students.length === 0
-                    ? 'bg-gray-400 cursor-not-allowed'
-                    : 'bg-gradient-to-r from-green-500 to-blue-500 hover:from-green-600 hover:to-blue-600 text-white shadow-lg hover:shadow-xl hover:scale-105 active:scale-95'
-                }`}
-              >
-                <Play size={24} />
-                {isSpinning ? 'Spinning...' : 'SPIN!'} (Space)
-              </button>
-              <p className="text-blue-200 mt-2 text-sm">Press SPACE to spin</p>
-            </div>
-          </div>
-
-          {/* Info Panel */}
-          <div className="bg-white/10 backdrop-blur-sm rounded-xl p-6 w-full lg:w-80">
-            <h3 className="text-xl font-bold text-white mb-4">Status</h3>
-            
-            <div className="space-y-4">
-              <div>
-                <p className="text-blue-200 text-sm">Students Remaining:</p>
-                <p className="text-2xl font-bold text-white">{students.length}</p>
-              </div>
-
-              {selectedStudent && (
-                <div className="bg-green-500/20 border border-green-400 rounded-lg p-4">
-                  <p className="text-green-200 text-sm">Selected Student:</p>
-                  <p className="text-2xl font-bold text-green-100">{selectedStudent}</p>
+        <!-- Main Spinner Area -->
+        <div class="main-content">
+            <!-- Spinner -->
+            <div class="spinner-container">
+                <div class="spinner-wheel">
+                    <div class="spinner-bg"></div>
+                    <div id="spinnerInner" class="spinner-inner"></div>
+                    <div class="spinner-center"></div>
+                    <div class="spinner-pointer"></div>
                 </div>
-              )}
 
-              <div>
-                <p className="text-blue-200 text-sm mb-2">Current Students:</p>
-                <div className="max-h-40 overflow-y-auto bg-black/20 rounded-lg p-3">
-                  {students.length > 0 ? (
-                    <div className="grid grid-cols-2 gap-1 text-sm text-white">
-                      {students.map((student, index) => (
-                        <div key={index} className="truncate">{student}</div>
-                      ))}
-                    </div>
-                  ) : (
-                    <p className="text-gray-400 text-sm italic">No students loaded</p>
-                  )}
+                <div class="spin-controls">
+                    <button id="spinBtn" class="spin-btn">
+                        <svg class="icon" viewBox="0 0 24 24"><path d="M8,5.14V19.14L19,12.14L8,5.14Z"/></svg>
+                        <span id="spinBtnText">SPIN!</span> (Space)
+                    </button>
+                    <p class="spin-hint">Press SPACE to spin</p>
                 </div>
-              </div>
             </div>
-          </div>
+
+            <!-- Info Panel -->
+            <div class="info-panel">
+                <h3 class="info-title">Status</h3>
+                
+                <div class="status-item">
+                    <p class="status-label">Students Remaining:</p>
+                    <p id="studentCount" class="status-value">0</p>
+                </div>
+
+                <div id="selectedStudentDiv" class="selected-student hidden">
+                    <p class="selected-label">Selected Student:</p>
+                    <p id="selectedStudentName" class="selected-name"></p>
+                </div>
+
+                <div class="status-item">
+                    <p class="status-label">Current Students:</p>
+                    <div class="student-list">
+                        <div id="studentList" class="student-grid">
+                            <p class="empty-list">No students loaded</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
         </div>
 
-        {/* Instructions */}
-        <div className="bg-white/10 backdrop-blur-sm rounded-xl p-6 mt-8">
-          <h3 className="text-lg font-bold text-white mb-3">How to Use:</h3>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-blue-200 text-sm">
-            <div>
-              <strong className="text-white">1. Add Students:</strong> Use the demo button, upload a CSV file, or type names separated by commas.
+        <!-- Instructions -->
+        <div class="instructions">
+            <h3>How to Use:</h3>
+            <div class="instruction-grid">
+                <div class="instruction-item">
+                    <strong>1. Add Students:</strong> Use the demo button, upload a CSV file, or type names separated by commas.
+                </div>
+                <div class="instruction-item">
+                    <strong>2. Spin the Wheel:</strong> Click "SPIN!" or press the space bar to randomly select a student.
+                </div>
+                <div class="instruction-item">
+                    <strong>3. Continue:</strong> Selected students are removed from the list. Keep spinning until all students have been chosen!
+                </div>
             </div>
-            <div>
-              <strong className="text-white">2. Spin the Wheel:</strong> Click "SPIN!" or press the space bar to randomly select a student.
-            </div>
-            <div>
-              <strong className="text-white">3. Continue:</strong> Selected students are removed from the list. Keep spinning until all students have been chosen!
-            </div>
-          </div>
         </div>
-      </div>
     </div>
-  );
-};
 
-export default StudentSpinner;
+    <script>
+        // Global variables
+        let students = [];
+        let isSpinning = false;
+        let selectedStudent = null;
+        let rotation = 0;
+        let soundEnabled = true;
+        let audioContext = null;
+
+        // Demo students data
+        const demoStudents = [
+            "Alice Johnson", "Bob Smith", "Charlie Brown", "Diana Lee", "Emma Davis",
+            "Frank Wilson", "Grace Chen", "Henry Taylor", "Ivy Martinez", "Jack Robinson",
+            "Kate Thompson", "Liam Garcia", "Maya Patel", "Noah Kim", "Olivia White",
+            "Peter Zhang", "Quinn Adams", "Ruby Singh", "Sam Lopez", "Tara Miller",
+            "Uma Sharma", "Victor Wong", "Wendy Clark", "Xavier Torres", "Zoe Green"
+        ];
+
+        // DOM elements
+        const spinnerInner = document.getElementById('spinnerInner');
+        const spinBtn = document.getElementById('spinBtn');
+        const spinBtnText = document.getElementById('spinBtnText');
+        const studentCount = document.getElementById('studentCount');
+        const studentList = document.getElementById('studentList');
+        const selectedStudentDiv = document.getElementById('selectedStudentDiv');
+        const selectedStudentName = document.getElementById('selectedStudentName');
+        const textInput = document.getElementById('textInput');
+        const fileInput = document.getElementById('fileInput');
+        const soundBtn = document.getElementById('soundBtn');
+        const errorMessage = document.getElementById('errorMessage');
+
+        // Show error message
+        function showError(message) {
+            errorMessage.textContent = message;
+            errorMessage.classList.remove('hidden');
+            setTimeout(() => {
+                errorMessage.classList.add('hidden');
+            }, 5000);
+        }
+
+        // Initialize audio context
+        async function initAudio() {
+            if (!audioContext && soundEnabled) {
+                try {
+                    await Tone.start();
+                    audioContext = Tone.context;
+                } catch (error) {
+                    console.log('Audio initialization failed:', error);
+                    soundEnabled = false;
+                    updateSoundButton();
+                }
+            }
+        }
+
+        // Process names to handle duplicates
+        function processNames(nameList) {
+            if (!Array.isArray(nameList) || nameList.length === 0) {
+                return [];
+            }
+
+            const firstNames = nameList.map(name => {
+                if (typeof name !== 'string') {
+                    return null;
+                }
+                const parts = name.trim().split(' ');
+                return {
+                    firstName: parts[0],
+                    lastName: parts.length > 1 ? parts[parts.length - 1] : '',
+                    fullName: name.trim()
+                };
+            }).filter(item => item && item.firstName);
+
+            // Count occurrences of first names
+            const firstNameCounts = {};
+            firstNames.forEach(item => {
+                const firstName = item.firstName.toLowerCase();
+                firstNameCounts[firstName] = (firstNameCounts[firstName] || 0) + 1;
+            });
+
+            // Process names based on duplicates
+            return firstNames.map(item => {
+                const firstName = item.firstName;
+                const firstNameLower = firstName.toLowerCase();
+                
+                if (firstNameCounts[firstNameLower] > 1 && item.lastName) {
+                    return `${firstName} ${item.lastName.charAt(0)}.`;
+                }
+                return firstName;
+            });
+        }
+
+        // Update UI
+        function updateUI() {
+            // Update student count
+            studentCount.textContent = students.length;
+
+            // Update student list
+            if (students.length > 0) {
+                studentList.innerHTML = '';
+                studentList.className = 'student-grid';
+                students.forEach(student => {
+                    const div = document.createElement('div');
+                    div.className = 'student-item';
+                    div.textContent = student;
+                    studentList.appendChild(div);
+                });
+            } else {
+                studentList.innerHTML = '<p class="empty-list">No students loaded</p>';
+                studentList.className = '';
+            }
+
+            // Update spinner wheel
+            updateSpinnerWheel();
+
+            // Update spin button
+            spinBtn.disabled = isSpinning || students.length === 0;
+            spinBtnText.textContent = isSpinning ? 'Spinning...' : 'SPIN!';
+        }
+
+        // Update spinner wheel with student names
+        function updateSpinnerWheel() {
+            // Remove existing student name elements
+            const existingNames = spinnerInner.querySelectorAll('.student-name');
+            existingNames.forEach(el => el.remove());
+
+            // Add student names around the wheel
+            students.forEach((student, index) => {
+                const angle = (360 / students.length) * index;
+                const radius = 140;
+                const x = Math.cos((angle - 90) * Math.PI / 180) * radius;
+                const y = Math.sin((angle - 90) * Math.PI / 180) * radius;
+                
+                const nameEl = document.createElement('div');
+                nameEl.className = 'student-name';
+                nameEl.textContent = student;
+                nameEl.style.left = `calc(50% + ${x}px)`;
+                nameEl.style.top = `calc(50% + ${y}px)`;
+                nameEl.style.transform = `translate(-50%, -50%) rotate(${angle}deg)`;
+                
+                spinnerInner.appendChild(nameEl);
+            });
+        }
+
+        // Play sound effect
+        async function playSound(type) {
+            if (!soundEnabled) return;
+            
+            try {
+                await initAudio();
+                
+                if (type === 'spin') {
+                    const synth = new Tone.Synth().toDestination();
+                    synth.triggerAttackRelease('C4', '0.5s');
+                    setTimeout(() => synth.triggerAttackRelease('E4', '0.3s'), 200);
+                } else if (type === 'select') {
+                    const synth = new Tone.Synth({
+                        oscillator: { type: 'triangle' }
+                    }).toDestination();
+                    synth.triggerAttackRelease('C5', '0.8s');
+                }
+            } catch (error) {
+                console.log('Sound playback failed:', error);
+            }
+        }
+
+        // Update sound button appearance
+        function updateSoundButton() {
+            if (soundEnabled) {
+                soundBtn.innerHTML = '<svg class="icon" viewBox="0 0 24 24"><path d="M14,3.23V5.29C16.89,6.15 19,8.83 19,12C19,15.17 16.89,17.85 14,18.71V20.77C18,19.86 21,16.28 21,12C21,7.72 18,4.14 14,3.23M16.5,12C16.5,10.23 15.5,8.71 14,7.97V16C15.5,15.29 16.5,13.76 16.5,12M3,9V15H7L12,20V4L7,9H3Z"/></svg>Sound On';
+                soundBtn.classList.remove('btn-gray');
+                soundBtn.classList.add('btn-yellow');
+            } else {
+                soundBtn.innerHTML = '<svg class="icon" viewBox="0 0 24 24"><path d="M12,4L9.91,6.09L12,8.18M4.27,3L3,4.27L7.73,9H3V15H7L12,20V13.27L16.25,17.53C15.58,18.04 14.83,18.46 14,18.7V20.77C15.38,20.45 16.63,19.82 17.68,18.96L19.73,21L21,19.73L12,10.73M19,12C19,12.94 18.8,13.82 18.46,14.64L19.97,16.15C20.62,14.91 21,13.5 21,12C21,7.72 18,4.14 14,3.23V5.29C16.89,6.15 19,8.83 19,12M16.5,12C16.5,10.23 15.5,8.71 14,7.97V10.18L16.45,12.63C16.5,12.43 16.5,12.21 16.5,12Z"/></svg>Sound Off';
+                soundBtn.classList.remove('btn-yellow');
+                soundBtn.classList.add('btn-gray');
+            }
+        }
+
+        // Spin function
+        async function spin() {
+            if (isSpinning || students.length === 0) return;
+
+            // Initialize audio on first user interaction
+            await initAudio();
+
+            isSpinning = true;
+            selectedStudent = null;
+            selectedStudentDiv.classList.add('hidden');
+            playSound('spin');
+
+            // Calculate random rotation
+            const baseRotation = rotation;
+            const spins = 3 + Math.random() * 2;
+            const randomAngle = Math.random() * 360;
+            const totalRotation = baseRotation + (spins * 360) + randomAngle;
+
+            rotation = totalRotation;
+            spinnerInner.style.transform = `rotate(${totalRotation}deg)`;
+            spinnerInner.style.transitionDuration = '3000ms';
+
+            updateUI();
+
+            // Calculate which student is selected
+            const normalizedAngle = (360 - (totalRotation % 360)) % 360;
+            const studentIndex = Math.floor((normalizedAngle / 360) * students.length);
+            const selected = students[studentIndex];
+
+            setTimeout(() => {
+                selectedStudent = selected;
+                selectedStudentName.textContent = selected;
+                selectedStudentDiv.classList.remove('hidden');
+                
+                isSpinning = false;
+                playSound('select');
+                
+                // Remove selected student from list
+                students.splice(studentIndex, 1);
+                updateUI();
+            }, 3000);
+        }
+
+        // Load demo students
+        function loadDemoStudents() {
+            try {
+                const processedNames = processNames(demoStudents);
+                students = processedNames;
+                selectedStudent = null;
+                selectedStudentDiv.classList.add('hidden');
+                updateUI();
+            } catch (error) {
+                showError('Failed to load demo students');
+            }
+        }
+
+        // Handle text input
+        function handleTextInput() {
+            try {
+                const value = textInput.value.trim();
+                if (!value) {
+                    showError('Please enter some student names');
+                    return;
+                }
+                
+                const nameList = value.split(/[,\n]/).filter(name => name.trim());
+                if (nameList.length === 0) {
+                    showError('No valid names found');
+                    return;
+                }
+                
+                const processedNames = processNames(nameList);
+                students = processedNames;
+                textInput.value = '';
+                selectedStudent = null;
+                selectedStudentDiv.classList.add('hidden');
+                updateUI();
+            } catch (error) {
+                showError('Failed to process student names');
+            }
+        }
+
+        // Handle CSV file upload
+        function handleFileUpload(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            if (!file.name.toLowerCase().endsWith('.csv')) {
+                showError('Please upload a CSV file');
+                event.target.value = '';
+                return;
+            }
+
+            Papa.parse(file, {
+                complete: (results) => {
+                    try {
+                        if (results.errors.length > 0) {
+                            showError('Error parsing CSV file');
+                            return;
+                        }
+                        
+                        const nameList = results.data.flat().filter(name => name && name.trim());
+                        if (nameList.length === 0) {
+                            showError('No valid names found in CSV file');
+                            return;
+                        }
+                        
+                        const processedNames = processNames(nameList);
+                        students = processedNames;
+                        selectedStudent = null;
+                        selectedStudentDiv.classList.add('hidden');
+                        updateUI();
+                    } catch (error) {
+                        showError('Failed to process CSV file');
+                    }
+                },
+                error: (error) => {
+                    showError('Failed to read CSV file');
+                },
+                header: false,
+                skipEmptyLines: true
+            });
+
+            event.target.value = '';
+        }
+
+        // Toggle sound
+        function toggleSound() {
+            soundEnabled = !soundEnabled;
+            updateSoundButton();
+        }
+
+        // Reset function
+        function resetApp() {
+            students = [];
+            selectedStudent = null;
+            selectedStudentDiv.classList.add('hidden');
+            rotation = 0;
+            spinnerInner.style.transform = 'rotate(0deg)';
+            spinnerInner.style.transitionDuration = '0ms';
+            updateUI();
+        }
+
+        // Event listeners
+        document.getElementById('demoBtn').addEventListener('click', loadDemoStudents);
+        document.getElementById('uploadBtn').addEventListener('click', () => fileInput.click());
+        document.getElementById('resetBtn').addEventListener('click', resetApp);
+        document.getElementById('soundBtn').addEventListener('click', toggleSound);
+        document.getElementById('addBtn').addEventListener('click', handleTextInput);
+        textInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') handleTextInput();
+        });
+        fileInput.addEventListener('change', handleFileUpload);
+        spinBtn.addEventListener('click', spin);
+
+        // Keyboard event listener for space bar
+        window.addEventListener('keydown', (event) => {
+            if (event.code === 'Space' && !isSpinning) {
+                event.preventDefault();
+                spin();
+            }
+        });
+
+        // Initialize
+        updateUI();
+        updateSoundButton();
+    </script>
+</body>
+</html>
