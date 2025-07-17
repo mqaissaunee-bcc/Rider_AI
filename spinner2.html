@@ -1,0 +1,361 @@
+import React, { useState, useEffect, useRef } from 'react';
+import { Upload, RotateCcw, Play, Users, Volume2 } from 'lucide-react';
+import Papa from 'papaparse';
+import * as Tone from 'tone';
+
+const StudentSpinner = () => {
+  const [students, setStudents] = useState([]);
+  const [isSpinning, setIsSpinning] = useState(false);
+  const [selectedStudent, setSelectedStudent] = useState(null);
+  const [rotation, setRotation] = useState(0);
+  const [textInput, setTextInput] = useState('');
+  const fileInputRef = useRef(null);
+  const spinnerRef = useRef(null);
+  const [soundEnabled, setSoundEnabled] = useState(true);
+
+  // Demo students data
+  const demoStudents = [
+    "Alice Johnson", "Bob Smith", "Charlie Brown", "Diana Lee", "Emma Davis",
+    "Frank Wilson", "Grace Chen", "Henry Taylor", "Ivy Martinez", "Jack Robinson",
+    "Kate Thompson", "Liam Garcia", "Maya Patel", "Noah Kim", "Olivia White",
+    "Peter Zhang", "Quinn Adams", "Ruby Singh", "Sam Lopez", "Tara Miller",
+    "Uma Sharma", "Victor Wong", "Wendy Clark", "Xavier Torres", "Zoe Green"
+  ];
+
+  // Process names to handle duplicates
+  const processNames = (nameList) => {
+    const firstNames = nameList.map(name => {
+      const parts = name.trim().split(' ');
+      return {
+        firstName: parts[0],
+        lastName: parts.length > 1 ? parts[parts.length - 1] : '',
+        fullName: name.trim()
+      };
+    });
+
+    // Count occurrences of first names
+    const firstNameCounts = {};
+    firstNames.forEach(item => {
+      const firstName = item.firstName.toLowerCase();
+      firstNameCounts[firstName] = (firstNameCounts[firstName] || 0) + 1;
+    });
+
+    // Process names based on duplicates
+    return firstNames.map(item => {
+      const firstName = item.firstName;
+      const firstNameLower = firstName.toLowerCase();
+      
+      if (firstNameCounts[firstNameLower] > 1 && item.lastName) {
+        return `${firstName} ${item.lastName.charAt(0)}.`;
+      }
+      return firstName;
+    });
+  };
+
+  // Load demo students
+  const loadDemoStudents = () => {
+    const processedNames = processNames(demoStudents);
+    setStudents(processedNames);
+    setSelectedStudent(null);
+  };
+
+  // Handle text input
+  const handleTextInput = () => {
+    if (!textInput.trim()) return;
+    
+    const nameList = textInput.split(/[,\n]/).filter(name => name.trim());
+    const processedNames = processNames(nameList);
+    setStudents(processedNames);
+    setTextInput('');
+    setSelectedStudent(null);
+  };
+
+  // Handle CSV file upload
+  const handleFileUpload = (event) => {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    Papa.parse(file, {
+      complete: (results) => {
+        const nameList = results.data.flat().filter(name => name && name.trim());
+        const processedNames = processNames(nameList);
+        setStudents(processedNames);
+        setSelectedStudent(null);
+      },
+      header: false,
+      skipEmptyLines: true
+    });
+
+    // Reset file input
+    event.target.value = '';
+  };
+
+  // Play sound effect
+  const playSound = async (type) => {
+    if (!soundEnabled) return;
+    
+    try {
+      await Tone.start();
+      
+      if (type === 'spin') {
+        // Spinning sound - rising pitch
+        const synth = new Tone.Synth().toDestination();
+        synth.triggerAttackRelease('C4', '0.5s');
+        setTimeout(() => synth.triggerAttackRelease('E4', '0.3s'), 200);
+      } else if (type === 'select') {
+        // Selection sound - bell-like
+        const synth = new Tone.Synth({
+          oscillator: { type: 'triangle' }
+        }).toDestination();
+        synth.triggerAttackRelease('C5', '0.8s');
+      }
+    } catch (error) {
+      console.log('Sound playback failed:', error);
+    }
+  };
+
+  // Spin function
+  const spin = () => {
+    if (isSpinning || students.length === 0) return;
+
+    setIsSpinning(true);
+    setSelectedStudent(null);
+    playSound('spin');
+
+    // Calculate random rotation (3-5 full spins plus random angle)
+    const baseRotation = rotation;
+    const spins = 3 + Math.random() * 2;
+    const randomAngle = Math.random() * 360;
+    const totalRotation = baseRotation + (spins * 360) + randomAngle;
+
+    setRotation(totalRotation);
+
+    // Calculate which student is selected
+    const normalizedAngle = (360 - (totalRotation % 360)) % 360;
+    const studentIndex = Math.floor((normalizedAngle / 360) * students.length);
+    const selected = students[studentIndex];
+
+    setTimeout(() => {
+      setSelectedStudent(selected);
+      setIsSpinning(false);
+      playSound('select');
+      
+      // Remove selected student from list
+      setStudents(prev => prev.filter((_, index) => index !== studentIndex));
+    }, 3000);
+  };
+
+  // Reset all students
+  const resetStudents = () => {
+    if (students.length > 0) {
+      // This is a simple reset - in a real app you might want to store the original list
+      setSelectedStudent(null);
+    }
+  };
+
+  // Keyboard event handler
+  useEffect(() => {
+    const handleKeyPress = (event) => {
+      if (event.code === 'Space') {
+        event.preventDefault();
+        spin();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyPress);
+    return () => window.removeEventListener('keydown', handleKeyPress);
+  }, [isSpinning, students]);
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-blue-900 via-purple-900 to-indigo-900 p-4">
+      <div className="max-w-6xl mx-auto">
+        {/* Header */}
+        <div className="text-center mb-8">
+          <h1 className="text-4xl font-bold text-white mb-2">🎯 Student Spinner</h1>
+          <p className="text-blue-200">Select a student randomly for class activities!</p>
+        </div>
+
+        {/* Controls */}
+        <div className="bg-white/10 backdrop-blur-sm rounded-xl p-6 mb-8">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+            <button
+              onClick={loadDemoStudents}
+              className="flex items-center justify-center gap-2 bg-green-600 hover:bg-green-700 text-white px-4 py-3 rounded-lg transition-colors"
+            >
+              <Users size={20} />
+              Load Demo (25 students)
+            </button>
+
+            <button
+              onClick={() => fileInputRef.current?.click()}
+              className="flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-3 rounded-lg transition-colors"
+            >
+              <Upload size={20} />
+              Upload CSV
+            </button>
+
+            <button
+              onClick={resetStudents}
+              className="flex items-center justify-center gap-2 bg-gray-600 hover:bg-gray-700 text-white px-4 py-3 rounded-lg transition-colors"
+            >
+              <RotateCcw size={20} />
+              Reset
+            </button>
+
+            <button
+              onClick={() => setSoundEnabled(!soundEnabled)}
+              className={`flex items-center justify-center gap-2 ${soundEnabled ? 'bg-yellow-600 hover:bg-yellow-700' : 'bg-gray-600 hover:bg-gray-700'} text-white px-4 py-3 rounded-lg transition-colors`}
+            >
+              <Volume2 size={20} />
+              Sound {soundEnabled ? 'On' : 'Off'}
+            </button>
+          </div>
+
+          {/* Text Input */}
+          <div className="flex gap-2">
+            <input
+              type="text"
+              value={textInput}
+              onChange={(e) => setTextInput(e.target.value)}
+              placeholder="Enter student names separated by commas or line breaks..."
+              className="flex-1 px-4 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              onKeyPress={(e) => e.key === 'Enter' && handleTextInput()}
+            />
+            <button
+              onClick={handleTextInput}
+              className="bg-purple-600 hover:bg-purple-700 text-white px-6 py-2 rounded-lg transition-colors"
+            >
+              Add Students
+            </button>
+          </div>
+
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".csv"
+            onChange={handleFileUpload}
+            className="hidden"
+          />
+        </div>
+
+        {/* Main Spinner Area */}
+        <div className="flex flex-col lg:flex-row gap-8 items-center justify-center">
+          {/* Spinner */}
+          <div className="relative">
+            <div className="w-96 h-96 relative">
+              {/* Spinner Background */}
+              <div className="absolute inset-0 rounded-full bg-gradient-to-r from-yellow-400 via-orange-500 to-red-500 shadow-2xl"></div>
+              
+              {/* Spinner Wheel */}
+              <div
+                ref={spinnerRef}
+                className="absolute inset-2 rounded-full bg-white shadow-inner transition-transform duration-3000 ease-out"
+                style={{
+                  transform: `rotate(${rotation}deg)`,
+                  transitionDuration: isSpinning ? '3000ms' : '0ms'
+                }}
+              >
+                {/* Students on the wheel */}
+                {students.map((student, index) => {
+                  const angle = (360 / students.length) * index;
+                  const radius = 140;
+                  const x = Math.cos((angle - 90) * Math.PI / 180) * radius;
+                  const y = Math.sin((angle - 90) * Math.PI / 180) * radius;
+                  
+                  return (
+                    <div
+                      key={index}
+                      className="absolute text-sm font-semibold text-gray-800 transform -translate-x-1/2 -translate-y-1/2 bg-white/80 px-2 py-1 rounded border-2 border-gray-300"
+                      style={{
+                        left: `calc(50% + ${x}px)`,
+                        top: `calc(50% + ${y}px)`,
+                        transform: `translate(-50%, -50%) rotate(${angle}deg)`
+                      }}
+                    >
+                      {student}
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Center Hub */}
+              <div className="absolute inset-1/2 w-8 h-8 -translate-x-1/2 -translate-y-1/2 bg-gray-800 rounded-full shadow-lg z-10"></div>
+
+              {/* Pointer */}
+              <div className="absolute top-4 left-1/2 w-0 h-0 border-l-[15px] border-r-[15px] border-b-[30px] border-l-transparent border-r-transparent border-b-red-600 transform -translate-x-1/2 z-20 drop-shadow-lg"></div>
+            </div>
+
+            {/* Spin Button */}
+            <div className="text-center mt-8">
+              <button
+                onClick={spin}
+                disabled={isSpinning || students.length === 0}
+                className={`flex items-center justify-center gap-3 mx-auto px-8 py-4 text-xl font-bold rounded-full transition-all transform ${
+                  isSpinning || students.length === 0
+                    ? 'bg-gray-400 cursor-not-allowed'
+                    : 'bg-gradient-to-r from-green-500 to-blue-500 hover:from-green-600 hover:to-blue-600 text-white shadow-lg hover:shadow-xl hover:scale-105 active:scale-95'
+                }`}
+              >
+                <Play size={24} />
+                {isSpinning ? 'Spinning...' : 'SPIN!'} (Space)
+              </button>
+              <p className="text-blue-200 mt-2 text-sm">Press SPACE to spin</p>
+            </div>
+          </div>
+
+          {/* Info Panel */}
+          <div className="bg-white/10 backdrop-blur-sm rounded-xl p-6 w-full lg:w-80">
+            <h3 className="text-xl font-bold text-white mb-4">Status</h3>
+            
+            <div className="space-y-4">
+              <div>
+                <p className="text-blue-200 text-sm">Students Remaining:</p>
+                <p className="text-2xl font-bold text-white">{students.length}</p>
+              </div>
+
+              {selectedStudent && (
+                <div className="bg-green-500/20 border border-green-400 rounded-lg p-4">
+                  <p className="text-green-200 text-sm">Selected Student:</p>
+                  <p className="text-2xl font-bold text-green-100">{selectedStudent}</p>
+                </div>
+              )}
+
+              <div>
+                <p className="text-blue-200 text-sm mb-2">Current Students:</p>
+                <div className="max-h-40 overflow-y-auto bg-black/20 rounded-lg p-3">
+                  {students.length > 0 ? (
+                    <div className="grid grid-cols-2 gap-1 text-sm text-white">
+                      {students.map((student, index) => (
+                        <div key={index} className="truncate">{student}</div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-gray-400 text-sm italic">No students loaded</p>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Instructions */}
+        <div className="bg-white/10 backdrop-blur-sm rounded-xl p-6 mt-8">
+          <h3 className="text-lg font-bold text-white mb-3">How to Use:</h3>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-blue-200 text-sm">
+            <div>
+              <strong className="text-white">1. Add Students:</strong> Use the demo button, upload a CSV file, or type names separated by commas.
+            </div>
+            <div>
+              <strong className="text-white">2. Spin the Wheel:</strong> Click "SPIN!" or press the space bar to randomly select a student.
+            </div>
+            <div>
+              <strong className="text-white">3. Continue:</strong> Selected students are removed from the list. Keep spinning until all students have been chosen!
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default StudentSpinner;
